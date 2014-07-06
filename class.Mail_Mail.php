@@ -54,6 +54,9 @@ class Mail_Mail extends DBObj {
     }
     return $ret;
   }
+  public function toString() {
+  	return "'{$this->subject}' - {$this->rcpt_to}";
+  }
 }
 
 plugins_register_backend_handler($plugin,"mails","list",array("Mail_Mail","listView"));
