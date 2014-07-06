@@ -47,6 +47,7 @@ class Mail_Job extends DBObj {
   		return false;
   }
   public function executeJob() {
+  	global $config;
   	$log="";
   	$mail=Mail_Mail::getById($this->mail_mails_id);
   	$sendAccount=Mail_SendAccount::getById($mail->mail_sendaccounts_id);
@@ -68,8 +69,9 @@ class Mail_Job extends DBObj {
   		return $log;
   	}
   	$mailer=new PHPMailer();
+  	$mailer->CharSet = 'UTF-8';
   	$mailer->isSMTP();
-  	$mailer->SMTPDebug=2;
+  	$mailer->SMTPDebug=1;
   	$mailer->Host=$conn->host;
   	$mailer->Port=$conn->port;
   	$mailer->SMTPSecure=$conn->sectsp;
@@ -80,6 +82,34 @@ class Mail_Job extends DBObj {
   	$mailer->addAddress($mail->rcpt_to);
   	$mailer->Subject=$mail->subject;
   	$mailer->isHTML(true);
+  	$hdrs=$mail->extra_headers;
+  	if($hdrs!="") {
+  		$hdrs=json_decode($hdrs);
+  		if($hdrs!==false && $hdrs!==null) {
+  			foreach($hdrs as $k=>$v)
+  				$mailer->addCustomHeader($k,$v);
+  		}
+  	}
+  	$attachments=Mail_Attachment::getByOwner($mail);
+//  	print_r($config);
+  	foreach($attachments as $idx=>$att) {
+// 		echo "Processing attachment MID {$mail->id} // {$att->id}\n";
+//  		print_r($att);
+  		$fo=FileRepo_File::getById($att->filerepo_files_id);
+  		$fp=$config["paths"]["filestore"].$fo->filestore_relpath;
+  		$wp=$config["paths"]["filestore_web"].$fo->filestore_relpath;
+  		if(strpos($mail->content_html,$wp)!==false) {
+  			$cid=md5($wp.$mail->id.$att->id.$idx);
+  			$mailer->addEmbeddedImage($fp,$cid);
+  			$mail->content_html=str_replace($wp,"cid:$cid",$mail->content_html);
+//  			echo "added {$fp} as $cid\n";
+  		} else
+	  		$mailer->addAttachment($fp,$fo->filename);
+//  		echo "added {$fp} / {$fo->filename}\n";
+  	}
+  	
+//  	$this->status=0;$this->commit();return;
+  	
   	$mailer->Body=$mail->content_html;
   	$mailer->AltBody=$mail->content_text;
   	ob_start();
